@@ -1,0 +1,241 @@
+#!/bin/ksh
+#This script is used to do a quick mq validation and the results will be displayed instantly.
+#Usage: admMQHealthChk.sh (Press enter)
+#Author: Sri Harshadithya Muddapu (sriharshadithya.muddapu@walgreens.com)
+#Reviewed by : Sampath Uppu (sampath.uppu@walgreens.com)
+
+
+#This is used to grep the queue manager name(Queue manager name is stored in 'qm' variable)
+
+qm=`dspmq | grep QMNAME | awk '{print $1}' | cut -d '(' -f2 | cut -d ')' -f1 | head -1`
+
+#This is used to check the queue manager status(Variables used in this function start with a)
+
+a=`dspmq | grep "$qm" | awk '{print $2}' | cut -d '(' -f2 | cut -d ')' -f1`
+echo "1. "$qm" is $a"
+
+#This is used to check whether queue manager is running with mqadm id or not.
+
+if ps -ef | grep mqadm | grep "$qm" | egrep "/opt/IBM/mq8/usr/mqm/bin/amqzxma0 -m "$qm" -u mqadm" | grep -v pts/ | grep -q /
+then
+echo "2. "$qm" is running with mqadm user ID"
+else
+echo "2. "$qm" is not running with mqadm user ID"
+fi
+
+
+#This is used to check the kmq Tivoli agent running status.
+
+if ps -ef | grep kmq | grep itmuser | egrep "mq_"$qm".cfg" | grep -q /
+then
+echo "3. kmq agent is running fine."
+else
+echo "3. kmq agent is not running."
+fi
+
+#This is used to check the kqi Tivoli agent running status.
+
+if ps -ef | grep kqi | grep itmuser | egrep "qi_"$qm".xml" | grep -q /
+then
+echo "4. kqi agent is running fine."
+else
+echo "4. kqi agent is not running fine."
+fi
+
+#This is used to check current depth of the DLQ(variables used in this function start with b)
+
+b1=`echo "dis ql("$qm"_DLQ)" | runmqsc "$qm" | grep -q CURDEPTH | awk '{print $1}' | cut -d "(" -f1 | cut -d ")" -f2` 
+      if $b1 | grep -q CURDEPTH
+      then
+      b2=`echo "dis ql("$qm"_DLQ)" | runmqsc "$qm" | grep CURDEPTH | awk '{print $1}' | cut -d "(" -f2 | cut -d ")" -f1`
+ else 
+      b2=`echo "dis ql("$qm"_DLQ)" | runmqsc "$qm" | grep CURDEPTH | awk '{print $2}' | cut -d "(" -f2 | cut -d ")" -f1`
+ fi
+
+#This is used to check max depth of the DLQ(variables used in this function start with c)
+ 
+c1=`echo "dis ql("$qm"_DLQ)" | runmqsc "$qm" | grep -q  MAXDEPTH | awk '{print $1}' | cut -d "(" -f1 | cut -d ")" -f2` 
+      if $c1 | grep -q MAXDEPTH
+      then
+      c2=`echo "dis ql("$qm"_DLQ)" | runmqsc "$qm" | grep MAXDEPTH | awk '{print $1}' | cut -d "(" -f2 | cut -d ")" -f1`
+      echo "5. DLQ current depth is $b2 and DLQ max depth is $c2"
+ else 
+      c2=`echo "dis ql("$qm"_DLQ)" | runmqsc "$qm" | grep MAXDEPTH | awk '{print $2}' | cut -d "(" -f2 | cut -d ")" -f1`
+     echo "5. DLQ current depth is $b2 and DLQ max depth is $c2"
+
+ fi
+
+ #This is used to check current depth of the SCTQ(variables used in this function start with d)
+ 
+d=`echo "dis ql(SYSTEM.CLUSTER.TRANSMIT.QUEUE)" | runmqsc "$qm" | grep -q CURDEPTH | awk '{print $1}' | cut -d "(" -f1 | cut -d ")" -f2`
+      if $d | grep -q CURDEPTH
+      then
+      d1=`echo "dis ql(SYSTEM.CLUSTER.TRANSMIT.QUEUE)" | runmqsc "$qm" | grep CURDEPTH | awk '{print $1}' | cut -d "(" -f2 | cut -d ")" -f1`
+else
+      d1=`echo "dis ql(SYSTEM.CLUSTER.TRANSMIT.QUEUE)" | runmqsc "$qm" | grep CURDEPTH | awk '{print $2}' | cut -d "(" -f2 | cut -d ")" -f1`
+ fi
+
+ #This is used to check max depth of the SCTQ(variables used in this function start with e)
+ 
+e=`echo "dis ql(SYSTEM.CLUSTER.TRANSMIT.QUEUE)" | runmqsc "$qm" | grep -q  MAXDEPTH | awk '{print $1}' | cut -d "(" -f1 | cut -d ")" -f2`
+      if $e | grep -q MAXDEPTH
+      then
+      e1=`echo "dis ql(SYSTEM.CLUSTER.TRANSMIT.QUEUE)" | runmqsc "$qm" | grep MAXDEPTH | awk '{print $1}' | cut -d "(" -f2 | cut -d ")" -f1`
+      echo "6. SCTQ current depth is $d1 and SCTQ max depth is $e1"
+          else
+      e1=`echo "dis ql(SYSTEM.CLUSTER.TRANSMIT.QUEUE)" | runmqsc "$qm" | grep MAXDEPTH | awk '{print $2}' | cut -d "(" -f2 | cut -d ")" -f1`
+  echo "6. SCTQ current depth is $d1 and SCTQ max depth is $e1"    
+ fi
+
+ #This is used to check listener status
+ 
+if ps -ef | grep lsr | grep "$qm" | egrep "/opt/IBM/mq8/usr/mqm/bin/runmqlsr -r -m "$qm" -t TCP -p" | grep -v pts/1 | grep -q /
+then
+echo "7. Listener is running successfully"
+else
+echo "7. Listener is not running"
+fi
+
+#This is used to check if channels are in stopped state or not(variables used in this function start with f)
+
+f=`echo "dis chs(*) where(STATUS EQ STOPPED)" | runmqsc | egrep -i "channel\(" | awk '{print $1}' | cut -d '(' -f2  | cut -d ')' -f1`
+
+if [ -z "$f" ]
+then
+chll=1
+else
+echo "The below channels are stopped $f"
+fi
+
+#This is used to check if channels are in retrying state or not(variables used in this function start with g)
+
+g=`echo "dis chs(*) where(STATUS EQ RETRYING)" | runmqsc | egrep -i "channel\(" | awk '{print $1}' | cut -d '(' -f2  | cut -d ')' -f1`
+if [ -z "$g" ]
+then
+chll=$(($chll+1))
+else
+echo "The below channels are RETRYING $g"
+fi
+
+#This is used to check if channels are in initializing state or not(variables used in this function start with h)
+
+h=`echo "dis chs(*) where(STATUS EQ INITIALIZING)" | runmqsc | egrep -i "channel\(" | awk '{print $1}' | cut -d '(' -f2  | cut -d ')' -f1`
+if [ -z "$h" ]
+then
+chll=$(($chll+1))
+else
+echo "The below channels are INITIALIZING $h"
+fi
+
+#This is used to check if channels are in paused state or not(variables used in this function start with i)
+i=`echo "dis chs(*) where(STATUS EQ PAUSED)" | runmqsc | egrep -i "channel\(" | awk '{print $1}' | cut -d '(' -f2  | cut -d ')' -f1`
+if [ -z "$i" ]
+then
+chll=$(($chll+1))
+else
+echo "The below channels are PAUSED $i"
+fi
+
+#This is used to check if channels are in requesting state or not(variables used in this function start with j)
+
+j=`echo "dis chs(*) where(STATUS EQ REQUESTING)" | runmqsc | egrep -i "channel\(" | awk '{print $1}' | cut -d '(' -f2  | cut -d ')' -f1`
+if [ -z "$j" ]
+then
+chll=$(($chll+1))
+else
+echo "The below channels are REQUESTING $j"
+fi
+
+#This is used to check if channels are in binding state or not(variables used in this function start with k)
+
+k=`echo "dis chs(*) where(STATUS EQ BINDING)" | runmqsc | egrep -i "channel\(" | awk '{print $1}' | cut -d '(' -f2  | cut -d ')' -f1`
+if [ -z "$k" ]
+then
+chll=$(($chll+1))
+else
+echo "The below channels are BINDING $k"
+fi
+
+
+#This is used to check if channels are in stopping state or not(variables used in this function start with l)
+
+l=`echo "dis chs(*) where(STATUS EQ STOPPING)" | runmqsc | egrep -i "channel\(" | awk '{print $1}' | cut -d '(' -f2  | cut -d ')' -f1`
+if [ -z "$l" ]
+then
+chll=$(($chll+1))
+else
+echo "The below channels are STOPPING $l"
+fi
+
+if [ $chll == 7 ]
+then
+echo "All the channels are running successfully"
+fi
+
+#This is used to check the health of the cluster(Variables used in this function start with m)
+
+m=`echo "dis clusqmgr("$qm") SUSPEND STATUS QMID" | runmqsc | egrep -i "SUSPEND\(" | awk '{print $2}' | cut -d '(' -f2  | cut -d ')' -f1 | head -1`
+if  [ "$m" == "NO" ]  
+then
+m1="The QMGR is inside the cluster"
+else
+m1="The QMGR is suspended from the cluster"
+fi
+m2=`echo "dis clusqmgr("$qm") SUSPEND STATUS QMID" | runmqsc | egrep -i "STATUS\(" | awk '{print $1}' | cut -d '(' -f2  | cut -d ')' -f1 | head -1`
+if [ "$m2" == "RUNNING" ] ||  [ "$m2" == "INACTIVE" ]
+then
+echo "8. $m1 and cluster channel is running fine"
+else
+echo "8. $m1 and cluster channel is neither RUNNING nor INACTIVE"
+fi
+
+#This is used to check the FDCs generated(Variables used in this function start with n)
+
+n=`find /var/mqm/errors/*.FDC -ctime -1 | cut -d '/' -f5`
+if [ -z "$n" ]
+then
+echo "9. There is no FDC generated"
+else
+n1=`ls -lrt /var/mqm/errors/*.FDC | tail -1 | awk '{print $9}'`
+n2=`grep -n "Probe Description" "$n1" | awk '{print $1}' | cut -d ':' -f1 | head -1`
+n3="$(($n2+1))"
+n4=`sed ''$n2','$n3'!d' "$n1"`
+echo "9. FDC file is generated and the "$n4""
+fi
+
+#This is used to check for queues piled up more than 50%(Variables used in this function start with o)
+
+echo "dis ql(*) where (curdepth gt 0)" | runmqsc | egrep -i "QUEUE\(" | awk '{print $1}' | cut -d ")"  -f1 | cut -d "(" -f2 >queues.txt
+echo "10. The below queues are more than fifty percent filled"
+while read line
+do
+o=`echo "dis ql("$line")" | runmqsc | grep CURDEPTH | awk '{print $1}' | cut -d "(" -f1`
+      if [[ $o == "CURDEPTH" ]]
+      then
+      o1=`echo "dis ql("$line")" | runmqsc  | grep CURDEPTH | awk '{print $1}' |  cut -d "(" -f2 | cut -d ")" -f1`
+      else
+      o1=`echo "dis ql("$line")" | runmqsc  | grep CURDEPTH | awk '{print $2}' |  cut -d "(" -f2 | cut -d ")" -f1`
+      fi
+o2=`echo "dis ql("$line")" | runmqsc  | grep MAXDEPTH | awk '{print $1}' | cut -d "(" -f1`
+      if [[ $o2 == "MAXDEPTH" ]]
+      then
+      o3=`echo "dis ql("$line")" | runmqsc  | grep MAXDEPTH | awk '{print $1}' |  cut -d "(" -f2 | cut -d ")" -f1`
+      else
+      o3=`echo "dis ql("$line")" | runmqsc  | grep MAXDEPTH | awk '{print $2}' |  cut -d "(" -f2 | cut -d ")" -f1`
+      fi
+if [[ "$o1" -gt 0 ]]
+then 
+o4=$(echo $o3 \/ $o1 |bc -l)
+o5=2.0
+if [[ "$o4" -lt "$o5" ]]
+then
+echo "$line is filled till $o1 out of $o3"
+o7=1
+fi
+fi
+          done < queues.txt
+if [[ "$o7" -ne 1 ]]
+then
+echo "There are no queues filled upto 50%"
+fi 
+rm queues.txt
