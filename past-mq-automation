@@ -1,8 +1,8 @@
 #!/bin/ksh
 #This script is used to do a quick mq validation and the results will be displayed instantly.
 #Usage: admMQHealthChk.sh (Press enter)
-#Author: Sri Harshadithya Muddapu (sriharshadithya.muddapu@walgreens.com)
-#Reviewed by : Sampath Uppu (sampath.uppu@walgreens.com)
+#Author: Sri Harshadithya Muddapu 
+#Reviewed by : Sampath Uppu 
 
 
 #This is used to grep the queue manager name(Queue manager name is stored in 'qm' variable)
